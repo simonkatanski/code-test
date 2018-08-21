@@ -35,7 +35,11 @@ A efficient implementation complete with unit tests must be completed in order f
 
 This project **IS NOT** designed to run, rather be ran from `dotnet test code-test.test\code-test.test.csproj`
 
+## How to Submit
 
+Create a Pull Request with your completed Solution. A ref to your stack-overflow full name, email, and number you can be reached at. 
+
+Also, please include your salary requirments and any work requirments you may have. 
 
 
 
