@@ -9,7 +9,7 @@ using System;
 namespace Tests
 {
     public class ImplementMeServiceTest_DoWork
-    {
+    { 
         readonly ILogService _logService;
 
         public ImplementMeServiceTest_DoWork()

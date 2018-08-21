@@ -10,7 +10,7 @@ namespace code_test
     class Program
     {
         // AutoResetEvent to signal when to exit the application.
-        private static readonly AutoResetEvent waitHandle = new AutoResetEvent(false);
+        private static readonly AutoResetEvent _waitHandle = new AutoResetEvent(false);
 
         static void Main(string[] args)
         {
@@ -31,11 +31,11 @@ namespace code_test
                 {
                     service.Stop();
                     // Allow the main thread to continue and exit...
-                    waitHandle.Set();
+                    _waitHandle.Set();
                 };
 
                 // Wait
-                waitHandle.WaitOne();
+                _waitHandle.WaitOne();
             }
 
         }
