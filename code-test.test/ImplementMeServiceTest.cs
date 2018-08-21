@@ -4,6 +4,7 @@ using RingbaLibs;
 using System.Threading;
 using System.Threading.Tasks;
 using code_test;
+using System;
 
 namespace Tests
 {
@@ -32,23 +33,11 @@ namespace Tests
                 _logService,
                 Substitute.For<IMessageProcessService>(),
                 Substitute.For<IMessageQueService>());
-            service.DoWork();
-            Assert.True(true);
+            ;
+            Assert.Throws(typeof(NotImplementedException), () => service.Stop());
 
         }
 
-        [Fact]
-        public void SampleTesFail()
-        {
-            //this is a fake test to show some general usage
-            var service = new ImplementMeService(Substitute.For<IKVRepository>(),
-                _logService,
-                Substitute.For<IMessageProcessService>(),
-                Substitute.For<IMessageQueService>());
-            service.DoWork();
-            Assert.True(false);
-
-        }
 
 
     }
