@@ -44,7 +44,7 @@ This project **IS NOT** designed to run, rather be ran from `dotnet test code-te
 
 Create a Pull Request with your completed Solution. A ref to your stack-overflow full name, email, and number you can be reached at. 
 
-Please include your favorite color, favorite book, salary, and any work requirments you may have. 
+Please include your favorite color, favorite book, salary, and any work requirements you may have. 
 
 
 
