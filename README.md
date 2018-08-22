@@ -2,7 +2,7 @@
 
 ## What the project does
 
-The main task of the project is to pull a batch of messages off of a messaging queue of some kind, and rocess each of the messages in the batch. This service will be deployed to a docker cluster and will be auto scaled based on message throughput. The project may have up to N instances running at any time. 
+The main task of the project is to pull a batch of messages off of a messaging queue of some kind, and process each of the messages in the batch. This service will be deployed to a docker cluster and will be auto-scale based on message throughput. The project may have up to N instances running at any time. 
 
 The goal of this project is to utilize good design practices to process the messages as quickly and efficiently as possible. It can be assumed the majority of the work that is done by each message is IO bound work.
 
