@@ -32,7 +32,7 @@ namespace code_test
 
         public void DoWork()
         {
-            //sudo code, not production ready
+            // Pseudo-code to illustrate a naive implementation. Provide an optimal implementation.
 
             while (true)
             {
