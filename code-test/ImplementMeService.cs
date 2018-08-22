@@ -6,7 +6,7 @@ using RingbaLibs.Models;
 namespace code_test
 {
     /// <summary>
-    /// TODO: Fill int he implementation of this service
+    /// TODO: Fill in the implementation of this service
     /// </summary>
     public class ImplementMeService : IDisposable
     {
