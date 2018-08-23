@@ -21,9 +21,9 @@ namespace code_test
             using (var service = services.GetService<ImplementMeService>())
             {
                 // Fire and forget
-                Task.Run(() =>
+                Task.Run(async () =>
                 {
-                    service.DoWork();
+                    await service.DoWork();
                 });
 
                 // Handle Control+C or Control+Break
