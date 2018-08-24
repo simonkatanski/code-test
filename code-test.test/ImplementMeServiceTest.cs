@@ -31,7 +31,7 @@ namespace Tests
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
-        public async Task GivenOneMessageInQueue_WhenReceived_ThenExpectOneMessageUpdated(bool isActionResultSuccessful)
+        public async Task GivenOneMessageInQueue_WhenProcessed_ThenExpectOneMessageUpdated(bool isActionResultSuccessful)
         {
             //arrange
             var updateFinishedEvent = new ManualResetEventSlim();
