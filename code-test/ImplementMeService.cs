@@ -2,6 +2,7 @@ using RingbaLibs;
 using RingbaLibs.Models;
 using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace code_test
@@ -17,6 +18,9 @@ namespace code_test
         private const int MaxNumberOfMessages = 10;
         private const int EmptyQueWaitTimeInSeconds = 30;
         private const int MaxMessageProcessTimeInSeconds = 30;
+
+        private CancellationTokenSource _cts;
+
         #endregion
 
         public ImplementMeService(
@@ -30,36 +34,42 @@ namespace code_test
             _queService = messageQueService;
             _processService = messageProcessService;
 
+            _cts = new CancellationTokenSource();
         }
 
         public async Task DoWork()
-        {
-            MessageBatchResult<RingbaUOW> batch;
-            while ((batch = await _queService.GetMessagesFromQueAsync<RingbaUOW>(
-                MaxNumberOfMessages, 
-                EmptyQueWaitTimeInSeconds, 
-                MaxMessageProcessTimeInSeconds)) != null)
-            {                
-                var processingTasks = batch.Messages.Select(ProcessSingleMessage);
-                var batchResults = await Task.WhenAll(processingTasks);
-                await _queService.UpdateMessagesAsync(batchResults);
+        {   
+            while (!_cts.IsCancellationRequested)
+            {
+                var batch = await GetMessagesBatch();
+                var batchProcessingTasks = batch.Messages.Select(message => ProcessSingleMessage(message, _cts.Token));
+                UpdateBatchRequest[] updateBatchRequests = await Task.WhenAll(batchProcessingTasks);
+                await _queService.UpdateMessagesAsync(updateBatchRequests);                                
             }
+                        
+            _cts = GetResetCts();
         }
 
         public void Stop()
         {
-            throw new NotImplementedException();
+            _cts.Cancel();
         }
 
         public void Dispose()
         {
-            throw new NotImplementedException();
+            _cts.Dispose();
         }
+        
+        private async Task<MessageBatchResult<RingbaUOW>> GetMessagesBatch() => await _queService.GetMessagesFromQueAsync<RingbaUOW>(
+            MaxNumberOfMessages,
+            EmptyQueWaitTimeInSeconds,
+            MaxMessageProcessTimeInSeconds);
 
-        private async Task<UpdateBatchRequest> ProcessSingleMessage(MessageWrapper<RingbaUOW> message)
+        private async Task<UpdateBatchRequest> ProcessSingleMessage(MessageWrapper<RingbaUOW> message, CancellationToken token)
         {
             try
             {
+                token.ThrowIfCancellationRequested();
                 var result = await _processService.ProccessMessageAsync(message.Body);
                 return new UpdateBatchRequest
                 {
@@ -75,6 +85,14 @@ namespace code_test
                     MessageCompleted = false
                 };
             }
+        }
+
+        private CancellationTokenSource GetResetCts()
+        {
+            if (_cts != null && _cts.IsCancellationRequested)
+                _cts.Dispose();
+
+            return new CancellationTokenSource();
         }
     }
 }

@@ -1,10 +1,13 @@
-using Xunit;
+using code_test;
 using NSubstitute;
 using RingbaLibs;
+using RingbaLibs.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using code_test;
-using System;
+using Xunit;
 
 namespace Tests
 {
@@ -25,20 +28,96 @@ namespace Tests
             _logService = logService;
         }
 
-        [Fact]
-        public void SampleTestOk()
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task GivenOneMessageInQueue_WhenReceived_ThenExpectOneMessageUpdated(bool isActionResultSuccessful)
         {
-            //this is a fake test to show some general usage
-            var service = new ImplementMeService(Substitute.For<IKVRepository>(),
-                _logService,
-                Substitute.For<IMessageProcessService>(),
-                Substitute.For<IMessageQueService>());
-            ;
-            Assert.Throws(typeof(NotImplementedException), () => service.Stop());
+            //arrange
+            var updateFinishedEvent = new ManualResetEventSlim();
 
+            var testBatch = new MessageBatchResult<RingbaUOW>
+            {
+                Messages = new List<MessageWrapper<RingbaUOW>> { new MessageWrapper<RingbaUOW> { Id = "1" } }
+            };
+            
+            var subMessageQueService = Substitute.For<IMessageQueService>();
+            subMessageQueService.GetMessagesFromQueAsync<RingbaUOW>(
+                Arg.Any<int>(), 
+                Arg.Any<int>(), 
+                Arg.Any<int>())
+                .Returns(Task.FromResult(testBatch));
+            subMessageQueService.UpdateMessagesAsync(Arg.Any<IEnumerable<UpdateBatchRequest>>())
+                .Returns(Task.FromResult(new ActionResult()))
+                .AndDoes(p => updateFinishedEvent.Set());
+
+            var subMessageProcessingService = Substitute.For<IMessageProcessService>();
+            subMessageProcessingService.ProccessMessageAsync(Arg.Any<RingbaUOW>())
+                .Returns(Task.FromResult(new ActionResult { IsSuccessfull = isActionResultSuccessful }));                
+
+            var service = new ImplementMeService(
+                Substitute.For<IKVRepository>(),
+                _logService,
+                subMessageProcessingService,
+                subMessageQueService);
+
+            //act
+            Task.Run(() => service.DoWork());
+
+            updateFinishedEvent.Wait();
+
+            service.Stop();
+                        
+            //assert
+            await subMessageQueService.Received().UpdateMessagesAsync(Arg.Is<IEnumerable<UpdateBatchRequest>>(p => 
+            p.Count() == 1 && 
+            p.First().Id == "1" &&
+            p.First().MessageCompleted == isActionResultSuccessful));            
         }
 
+        [Fact]
+        public async Task GivenOneMessageInQueue_WhenReceivedAndProcessingFails_ThenExpectOneMessageUpdated()
+        {
+            //arrange
+            var updateFinishedEvent = new ManualResetEventSlim();
 
+            var testBatch = new MessageBatchResult<RingbaUOW>
+            {
+                Messages = new List<MessageWrapper<RingbaUOW>> { new MessageWrapper<RingbaUOW> { Id = "1" } }
+            };
 
+            var subMessageQueService = Substitute.For<IMessageQueService>();
+            subMessageQueService.GetMessagesFromQueAsync<RingbaUOW>(
+                Arg.Any<int>(),
+                Arg.Any<int>(),
+                Arg.Any<int>())
+                .Returns(Task.FromResult(testBatch));
+            subMessageQueService.UpdateMessagesAsync(Arg.Any<IEnumerable<UpdateBatchRequest>>())
+                .Returns(Task.FromResult(new ActionResult()))
+                .AndDoes(p => updateFinishedEvent.Set());
+
+            var subMessageProcessingService = Substitute.For<IMessageProcessService>();
+            subMessageProcessingService.ProccessMessageAsync(Arg.Any<RingbaUOW>())
+                .Returns<ActionResult>(x => throw new ArgumentNullException() );                
+
+            var service = new ImplementMeService(
+                Substitute.For<IKVRepository>(),
+                _logService,
+                subMessageProcessingService,
+                subMessageQueService);
+
+            //act
+            Task.Run(() => service.DoWork());
+
+            updateFinishedEvent.Wait();
+
+            service.Stop();
+
+            //assert
+            await subMessageQueService.Received().UpdateMessagesAsync(Arg.Is<IEnumerable<UpdateBatchRequest>>(p =>
+            p.Count() == 1 &&
+            p.First().Id == "1" &&
+            p.First().MessageCompleted == false));
+        }
     }
 }
