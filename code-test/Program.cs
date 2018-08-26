@@ -37,12 +37,6 @@ namespace code_test
                 // Wait
                 _waitHandle.WaitOne();
             }
-
         }
-
-
-      
-
-
     }
 }

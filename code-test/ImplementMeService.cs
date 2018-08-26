@@ -101,8 +101,8 @@ namespace code_test
                 var sw = Stopwatch.StartNew();
 
                 token.ThrowIfCancellationRequested();
-                var result = await _processService.ProccessMessageAsync(message.Body);
-                var messageStatusInfo = GetStatus(result);
+                ActionResult result = await _processService.ProccessMessageAsync(message.Body);
+                var messageStatusInfo = result.GetStatusInfo();
 
                 sw.Stop();
                 await _logservice.LogInfoAsync(_logId, $"Processing message by id: {message.Id} completed with message status: {messageStatusInfo}, took: {sw.ElapsedMilliseconds} ms.");
@@ -127,15 +127,7 @@ namespace code_test
                 MessageCompleted = false
             };
         }
-
-        private string GetStatus(ActionResult result)
-        {
-            if (!result.IsSuccessfull)
-                return $"IsSuccessful: {result.IsSuccessfull}, Error code: {result.ErrorCode}, Error message: {result.ErrorMessage}";
-
-            return $"IsSuccessful: {result.IsSuccessfull}";
-        }
-
+                
         private CancellationTokenSource GetResetCts()
         {
             if (_cts != null && _cts.IsCancellationRequested)
