@@ -11,9 +11,9 @@ namespace code_test
 {
     public class ImplementMeService : IDisposable
     {       
-        #region private instance members
-        private readonly IKVRepository _repository;
-        private readonly ILogService _logservice;
+        #region private instance members        
+        private readonly IValidationService _validationService;
+        private readonly ILogService _logService;
         private readonly IMessageProcessService _processService;
         private readonly IMessageQueService _queService;
 
@@ -23,17 +23,16 @@ namespace code_test
 
         private CancellationTokenSource _cts;
         private string _logId;
-
         #endregion
 
         public ImplementMeService(
-            IKVRepository repository,
+            IValidationService expiryValidationService,
             ILogService logService,
             IMessageProcessService messageProcessService,
             IMessageQueService messageQueService)
-        {
-            _repository = repository;
-            _logservice = logService;
+        {            
+            _validationService = expiryValidationService;
+            _logService = logService;
             _queService = messageQueService;
             _processService = messageProcessService;
 
@@ -43,41 +42,41 @@ namespace code_test
 
         public async Task DoWork()
         {
-            await _logservice.LogInfoAsync(_logId, "Queue processing started.");
+            await _logService.LogInfoAsync(_logId, "Queue processing started.");
 
             while (!_cts.IsCancellationRequested)
             {
                 var sw = Stopwatch.StartNew();
                                 
-                await _logservice.LogInfoAsync(_logId, "Getting batch from queue.");
+                await _logService.LogInfoAsync(_logId, "Getting batch from queue.");
 
                 var batch = await GetMessagesBatch();
 
-                await _logservice.LogInfoAsync(_logId, $"Number of message in batch: {batch.NumberOfMessages}");
-                await _logservice.LogInfoAsync(_logId, "Started messages processing.");
-
+                await _logService.LogInfoAsync(_logId, $"Number of message in batch: {batch.NumberOfMessages}");
+                await _logService.LogInfoAsync(_logId, "Started messages processing.");
+                        
                 var batchProcessingTasks = batch.Messages.Select(message => ProcessSingleMessage(message, _cts.Token));
                 UpdateBatchRequest[] updateBatchRequests = await Task.WhenAll(batchProcessingTasks);
 
                 var completedMessagesCount = updateBatchRequests.Count(p => p.MessageCompleted);
                 var uncompletedMessagesCount = batch.NumberOfMessages - completedMessagesCount;
-                await _logservice.LogInfoAsync(_logId, $"Finished messages processing. Completed messages: {completedMessagesCount}. Uncompleted messages: {uncompletedMessagesCount}.");
+                await _logService.LogInfoAsync(_logId, $"Finished messages processing. Completed messages: {completedMessagesCount}. Uncompleted messages: {uncompletedMessagesCount}.");
 
                 await _queService.UpdateMessagesAsync(updateBatchRequests);
 
                 sw.Stop();
-                await _logservice.LogInfoAsync(_logId, $"Batch processing completed, took: {sw.ElapsedMilliseconds} ms.");
+                await _logService.LogInfoAsync(_logId, $"Batch processing completed, took: {sw.ElapsedMilliseconds} ms.");
             }
 
-            await _logservice.LogInfoAsync(_logId, "Queue processing stopped.");
+            await _logService.LogInfoAsync(_logId, "Queue processing stopped.");
             _cts = GetResetCts();
         }
-
+        
         public void Stop()
         {
             if (!_cts.IsCancellationRequested)
             {
-                _logservice.LogInfo(_logId, "Stopping queue processing.");
+                _logService.LogInfo(_logId, "Stopping queue processing.");
                 _cts.Cancel();
             }
         }
@@ -94,10 +93,23 @@ namespace code_test
 
         private async Task<UpdateBatchRequest> ProcessSingleMessage(MessageWrapper<RingbaUOW> message, CancellationToken token)
         {
-            await _logservice.LogInfoAsync(_logId, $"Processing message by id: {message.Id} started.");            
+            await _logService.LogInfoAsync(_logId, $"Processing message by id: {message.Id} started.");            
             
             try
             {
+                if (await _validationService.IsInProcessing(message.Body))
+                    return null;
+
+                if(await _validationService.HasExpiredAge(message.Body) || await _validationService.HasExpiredRetries(message.Body))
+                {
+                    await _validationService.ClearValidationMetadata(message.Body);
+                    return new UpdateBatchRequest
+                    {
+                        Id = message.Id,
+                        MessageCompleted = true
+                    };
+                }
+                                
                 var sw = Stopwatch.StartNew();
 
                 token.ThrowIfCancellationRequested();
@@ -105,7 +117,13 @@ namespace code_test
                 var messageStatusInfo = result.GetStatusInfo();
 
                 sw.Stop();
-                await _logservice.LogInfoAsync(_logId, $"Processing message by id: {message.Id} completed with message status: {messageStatusInfo}, took: {sw.ElapsedMilliseconds} ms.");
+                await _logService.LogInfoAsync(_logId, $"Processing message by id: {message.Id} completed with message status: {messageStatusInfo}, took: {sw.ElapsedMilliseconds} ms.");
+
+                if (result.IsSuccessfull)
+                    await _validationService.ClearValidationMetadata(message.Body);
+                else
+                    await _validationService.ResetInProcessing(message.Body);
+
                 return new UpdateBatchRequest
                 {
                     Id = message.Id,
@@ -114,12 +132,14 @@ namespace code_test
             }
             catch(OperationCanceledException)
             {
-                await _logservice.LogInfoAsync(_logId, $"Processing of message by id: {message.Id} has been cancelled.");
+                await _logService.LogInfoAsync(_logId, $"Processing of message by id: {message.Id} has been cancelled.");
             }
             catch (Exception ex) //TODO: Change implementation to only catch exceptions expected from ProcessMessageAsync
             {
-                await _logservice.LogExceptionAsync(_logId, ex, $"Processing message by id: {message.Id} failed.");                
+                await _logService.LogExceptionAsync(_logId, ex, $"Processing message by id: {message.Id} failed.");                
             }
+
+            await _validationService.ResetInProcessing(message.Body);
 
             return new UpdateBatchRequest
             {
@@ -127,7 +147,7 @@ namespace code_test
                 MessageCompleted = false
             };
         }
-                
+
         private CancellationTokenSource GetResetCts()
         {
             if (_cts != null && _cts.IsCancellationRequested)
