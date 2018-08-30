@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace RingbaLibs.Models
 {
     public sealed class RingbaUOW

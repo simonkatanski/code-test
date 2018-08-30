@@ -12,7 +12,7 @@ namespace code_test
     public class ImplementMeService : IDisposable
     {       
         #region private instance members        
-        private readonly IValidationService _validationService;
+        private readonly IUOWStatusService _uowStatusService;
         private readonly ILogService _logService;
         private readonly IMessageProcessService _processService;
         private readonly IMessageQueService _queService;
@@ -26,12 +26,12 @@ namespace code_test
         #endregion
 
         public ImplementMeService(
-            IValidationService expiryValidationService,
+            IUOWStatusService uowStatusService,
             ILogService logService,
             IMessageProcessService messageProcessService,
             IMessageQueService messageQueService)
         {            
-            _validationService = expiryValidationService;
+            _uowStatusService = uowStatusService;
             _logService = logService;
             _queService = messageQueService;
             _processService = messageProcessService;
@@ -93,16 +93,18 @@ namespace code_test
 
         private async Task<UpdateBatchRequest> ProcessSingleMessage(MessageWrapper<RingbaUOW> message, CancellationToken token)
         {
-            await _logService.LogInfoAsync(_logId, $"Processing message by id: {message.Id} started.");            
-            
+            await _logService.LogInfoAsync(_logId, $"Processing message by id: {message.Id} started.");
+            var uow = message.Body;
+
             try
             {
-                if (await _validationService.IsInProcessing(message.Body))
+                if (await _uowStatusService.IsInProcessing(uow.UOWId))
                     return null;
 
-                if(await _validationService.HasExpiredAge(message.Body) || await _validationService.HasExpiredRetries(message.Body))
+                if(await _uowStatusService.HasExpiredAge(uow.UOWId, uow.CreationEPOCH, uow.MaxAgeInSeconds) ||
+                   await _uowStatusService.HasExpiredRetries(uow.UOWId, uow.MaxNumberOfRetries))
                 {
-                    await _validationService.ClearValidationMetadata(message.Body);
+                    await _uowStatusService.ClearStatusMetadata(uow.UOWId);
                     return new UpdateBatchRequest
                     {
                         Id = message.Id,
@@ -120,9 +122,9 @@ namespace code_test
                 await _logService.LogInfoAsync(_logId, $"Processing message by id: {message.Id} completed with message status: {messageStatusInfo}, took: {sw.ElapsedMilliseconds} ms.");
 
                 if (result.IsSuccessfull)
-                    await _validationService.ClearValidationMetadata(message.Body);
+                    await _uowStatusService.ClearStatusMetadata(uow.UOWId);
                 else
-                    await _validationService.ResetInProcessing(message.Body);
+                    await _uowStatusService.ResetInProcessing(uow.UOWId);
 
                 return new UpdateBatchRequest
                 {
@@ -139,7 +141,7 @@ namespace code_test
                 await _logService.LogExceptionAsync(_logId, ex, $"Processing message by id: {message.Id} failed.");                
             }
 
-            await _validationService.ResetInProcessing(message.Body);
+            await _uowStatusService.ResetInProcessing(uow.UOWId);
 
             return new UpdateBatchRequest
             {

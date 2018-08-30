@@ -56,7 +56,7 @@ namespace Tests
                 .Returns(Task.FromResult(new ActionResult { IsSuccessfull = isActionResultSuccessful }));
 
             var service = new ImplementMeService(
-                Substitute.For<IValidationService>(),
+                Substitute.For<IUOWStatusService>(),
                 _logService,
                 subMessageProcessingService,
                 subMessageQueService);
@@ -101,7 +101,7 @@ namespace Tests
                 .Returns<ActionResult>(x => throw new ArgumentNullException());
 
             var service = new ImplementMeService(
-                Substitute.For<IValidationService>(),
+                Substitute.For<IUOWStatusService>(),
                 _logService,
                 subMessageProcessingService,
                 subMessageQueService);
@@ -147,7 +147,7 @@ namespace Tests
                 .Returns<ActionResult>(x => throw new ArgumentNullException("someParam", expectedExceptionMessage));
                         
             var service = new ImplementMeService(
-                Substitute.For<IValidationService>(),
+                Substitute.For<IUOWStatusService>(),
                 _logService,
                 subMessageProcessingService,
                 subMessageQueService);
@@ -207,7 +207,7 @@ namespace Tests
                 .Returns(new ActionResult());
 
             service = new ImplementMeService(
-                Substitute.For<IValidationService>(),
+                Substitute.For<IUOWStatusService>(),
                 logService,
                 subMessageProcessingService,
                 subMessageQueService);
@@ -265,7 +265,7 @@ namespace Tests
                 .Returns(new ActionResult { IsSuccessfull = true });
 
             service = new ImplementMeService(
-                Substitute.For<IValidationService>(),
+                Substitute.For<IUOWStatusService>(),
                 logService,
                 subMessageProcessingService,
                 subMessageQueService);
@@ -324,7 +324,7 @@ namespace Tests
                 .Returns(new ActionResult { IsSuccessfull = true });
 
             service = new ImplementMeService(
-                Substitute.For<IValidationService>(),
+                Substitute.For<IUOWStatusService>(),
                 logService,
                 subMessageProcessingService,
                 subMessageQueService);
