@@ -45,12 +45,9 @@ namespace code_test
                 return false;
 
             var result = await _repository.GetAsync<UowStatus>(uowId);
-            if (result.Item == null && !string.IsNullOrEmpty(result.ErrorMessage))
-            {
-                await _logService.LogCriticalAsync(_logId, $"Retrieving key value entry failed for RingbaUOW status by id: {uowId} with code: {result.ErrorCode} and message: {result.ErrorMessage}");
-                return false;
-            }
-
+            if (result.Item == null && !string.IsNullOrEmpty(result.ErrorMessage))            
+                throw new InvalidOperationException($"Retrieval of uow status information for {uowId} failed with message: {result.ErrorMessage} and code: {result.ErrorCode}");                               
+            
             if (result.Item != null)
             {
                 if (result.Item.CurrentRetrialCount < maxNumberOfRetries)
@@ -76,7 +73,7 @@ namespace code_test
                 return false;
 
             var dateTimeOffset = DateTimeOffset.FromUnixTimeSeconds(creationEPOCH);
-            if ((dateTimeOffset.UtcDateTime - DateTime.UtcNow).Seconds > maxAgeInSeconds)
+            if ((DateTime.UtcNow - dateTimeOffset.UtcDateTime).TotalSeconds > maxAgeInSeconds)
             {
                 await _logService.LogInfoAsync(_logId, $"Expiry age reached for RingbaUOW by id: {uowId}");
                 return true;
