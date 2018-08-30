@@ -182,7 +182,7 @@ namespace Tests
         {
             //arrange
             string testMessageId = "1";
-            string expectedExceptionMessage = $"Processing of message by id: { testMessageId } has been cancelled.";            
+            string expectedExceptionMessage = $"Processing of message: 1, UOWId:  has been cancelled.";            
             
             var testBatch = new MessageBatchResult<RingbaUOW>
             {
@@ -204,7 +204,7 @@ namespace Tests
                 Arg.Any<int>(),
                 Arg.Any<int>())
                 .Returns(Task.FromResult(testBatch))
-                .AndDoes(p => { service.Stop(); });
+                .AndDoes(p => service.Stop());
 
             subMessageQueService.UpdateMessagesAsync(Arg.Any<IEnumerable<UpdateBatchRequest>>())
                 .Returns(Task.FromResult(new ActionResult()));                
@@ -261,7 +261,7 @@ namespace Tests
 
             subMessageQueService.UpdateMessagesAsync(Arg.Any<IEnumerable<UpdateBatchRequest>>())
                 .Returns(Task.FromResult(new ActionResult()))
-                .AndDoes(p => { service.Stop(); });
+                .AndDoes(p => service.Stop());
 
             var subMessageProcessingService = Substitute.For<IMessageProcessService>();
             subMessageProcessingService.ProccessMessageAsync(Arg.Any<RingbaUOW>())
@@ -276,7 +276,7 @@ namespace Tests
             await service.DoWork();
                         
             //assert
-            await logService.Received(10).LogAsync(
+            await logService.Received(11).LogAsync(
                 Arg.Any<string>(),
                 Arg.Any<string>(),
                 Arg.Any<LOG_LEVEL>(),
@@ -328,7 +328,7 @@ namespace Tests
             await service.DoWork();
 
             //assert
-            await logService.Received(10).LogAsync(
+            await logService.Received(11).LogAsync(
                 Arg.Any<string>(),
                 Arg.Any<string>(),
                 Arg.Any<LOG_LEVEL>(),

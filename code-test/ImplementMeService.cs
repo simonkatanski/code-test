@@ -52,7 +52,7 @@ namespace code_test
 
                 var batch = await GetMessagesBatch();
 
-                await _logService.LogInfoAsync(_logId, $"Number of message in batch: {batch.NumberOfMessages}");
+                await _logService.LogInfoAsync(_logId, $"Number of messages in batch: {batch.NumberOfMessages}");
                 await _logService.LogInfoAsync(_logId, "Started messages processing.");
                         
                 var batchProcessingTasks = batch.Messages.Select(message => ProcessSingleMessage(message, _cts.Token));
@@ -61,6 +61,7 @@ namespace code_test
 
                 var completedMessagesCount = nonNullUpdateBatchRequests.Count(p => p.MessageCompleted);
                 var uncompletedMessagesCount = batch.NumberOfMessages - completedMessagesCount;
+                await _logService.LogInfoAsync(_logId, $"Number of messages dropped due to concurrency conflict: {updateBatchRequests.Count(p => p == null)}");
                 await _logService.LogInfoAsync(_logId, $"Finished messages processing. Completed messages: {completedMessagesCount}. Uncompleted messages: {uncompletedMessagesCount}.");
 
                 await _queService.UpdateMessagesAsync(nonNullUpdateBatchRequests);
@@ -94,7 +95,7 @@ namespace code_test
 
         private async Task<UpdateBatchRequest> ProcessSingleMessage(MessageWrapper<RingbaUOW> message, CancellationToken token)
         {
-            await _logService.LogInfoAsync(_logId, $"Processing message by id: {message.Id} started.");
+            await _logService.LogInfoAsync(_logId, $"Processing message: {message.Id} started.");
             var uow = message.Body;
 
             try
@@ -103,13 +104,14 @@ namespace code_test
 
                 if (!await _uowStatusService.TrySetInProcessing(uow.UOWId))
                 {
-                    await _logService.LogInfoAsync(_logId, $"Unable to start processing message by id: {message.Id}, UOWId: {uow.UOWId}.");
+                    await _logService.LogInfoAsync(_logId, $"Unable to start processing message: {message.Id}, UOWId: {uow.UOWId}.");
                     return null;
                 }
                                 
                 if (await _uowStatusService.HasExpiredAge(uow.UOWId, uow.CreationEPOCH, uow.MaxAgeInSeconds) ||
                    await _uowStatusService.HasExpiredRetries(uow.UOWId, uow.MaxNumberOfRetries))
                 {
+                    await _logService.LogInfoAsync(_logId, $"Expiry reached for message : {message.Id}, UOWId: {uow.UOWId}. Returning message as completed.");
                     await _uowStatusService.ClearStatusMetadata(uow.UOWId);
                     return new UpdateBatchRequest
                     {
@@ -122,7 +124,7 @@ namespace code_test
                 ActionResult result = await _processService.ProccessMessageAsync(message.Body);                
                 sw.Stop();
                                 
-                await _logService.LogInfoAsync(_logId, $"Processing message by id: {message.Id} completed with message status: {result.GetStatusInfo()}, took: {sw.ElapsedMilliseconds} ms.");
+                await _logService.LogInfoAsync(_logId, $"Processing message: {message.Id}, UOWId: {uow.UOWId} completed with message status: {result.GetStatusInfo()}, took: {sw.ElapsedMilliseconds} ms.");
 
                 if (result.IsSuccessfull)
                     await _uowStatusService.ClearStatusMetadata(uow.UOWId);
@@ -137,11 +139,11 @@ namespace code_test
             }
             catch(OperationCanceledException)
             {
-                await _logService.LogWarningAsync(_logId, $"Processing of message by id: {message.Id} has been cancelled.");
+                await _logService.LogWarningAsync(_logId, $"Processing of message: {message.Id}, UOWId: {uow.UOWId} has been cancelled.");
             }
             catch (Exception ex) //TODO: Change implementation to only catch exceptions expected from ProcessMessageAsync
             {
-                await _logService.LogExceptionAsync(_logId, ex, $"Processing message by id: {message.Id} failed.");                
+                await _logService.LogExceptionAsync(_logId, ex, $"Processing message by id: {message.Id}, UOWId: {uow.UOWId} failed.");                
             }
 
             await _uowStatusService.ResetInProcessing(uow.UOWId);
