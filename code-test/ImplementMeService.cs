@@ -57,12 +57,13 @@ namespace code_test
                         
                 var batchProcessingTasks = batch.Messages.Select(message => ProcessSingleMessage(message, _cts.Token));
                 UpdateBatchRequest[] updateBatchRequests = await Task.WhenAll(batchProcessingTasks);
+                var nonNullUpdateBatchRequests = updateBatchRequests.Where(p => p != null).ToArray();
 
-                var completedMessagesCount = updateBatchRequests.Count(p => p.MessageCompleted);
+                var completedMessagesCount = nonNullUpdateBatchRequests.Count(p => p.MessageCompleted);
                 var uncompletedMessagesCount = batch.NumberOfMessages - completedMessagesCount;
                 await _logService.LogInfoAsync(_logId, $"Finished messages processing. Completed messages: {completedMessagesCount}. Uncompleted messages: {uncompletedMessagesCount}.");
 
-                await _queService.UpdateMessagesAsync(updateBatchRequests);
+                await _queService.UpdateMessagesAsync(nonNullUpdateBatchRequests);
 
                 sw.Stop();
                 await _logService.LogInfoAsync(_logId, $"Batch processing completed, took: {sw.ElapsedMilliseconds} ms.");
@@ -98,10 +99,12 @@ namespace code_test
 
             try
             {
+                token.ThrowIfCancellationRequested();
+
                 if (await _uowStatusService.IsInProcessing(uow.UOWId))
                     return null;
 
-                if(await _uowStatusService.HasExpiredAge(uow.UOWId, uow.CreationEPOCH, uow.MaxAgeInSeconds) ||
+                if (await _uowStatusService.HasExpiredAge(uow.UOWId, uow.CreationEPOCH, uow.MaxAgeInSeconds) ||
                    await _uowStatusService.HasExpiredRetries(uow.UOWId, uow.MaxNumberOfRetries))
                 {
                     await _uowStatusService.ClearStatusMetadata(uow.UOWId);
@@ -111,10 +114,8 @@ namespace code_test
                         MessageCompleted = true
                     };
                 }
-                                
-                var sw = Stopwatch.StartNew();
 
-                token.ThrowIfCancellationRequested();
+                var sw = Stopwatch.StartNew();                
                 ActionResult result = await _processService.ProccessMessageAsync(message.Body);
                 var messageStatusInfo = result.GetStatusInfo();
 
@@ -134,7 +135,7 @@ namespace code_test
             }
             catch(OperationCanceledException)
             {
-                await _logService.LogInfoAsync(_logId, $"Processing of message by id: {message.Id} has been cancelled.");
+                await _logService.LogWarningAsync(_logId, $"Processing of message by id: {message.Id} has been cancelled.");
             }
             catch (Exception ex) //TODO: Change implementation to only catch exceptions expected from ProcessMessageAsync
             {
