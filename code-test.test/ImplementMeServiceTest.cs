@@ -50,25 +50,36 @@ namespace Tests
             subMessageQueService.UpdateMessagesAsync(Arg.Any<IEnumerable<UpdateBatchRequest>>())
                 .Returns(Task.FromResult(new ActionResult()))
                 .AndDoes(p => service.Stop());
+            
+            var subUOWStatusService = Substitute.For<IUOWStatusService>();
+            subUOWStatusService.TrySetInProcessing(Arg.Any<string>())
+                .Returns(Task.FromResult(true));
+            subUOWStatusService.ClearStatusMetadata(
+                Arg.Any<string>())
+                .Returns(Task.CompletedTask);
+            subUOWStatusService.ResetInProcessing(
+                Arg.Any<string>())
+                .Returns(Task.CompletedTask);
 
             var subMessageProcessingService = Substitute.For<IMessageProcessService>();
             subMessageProcessingService.ProccessMessageAsync(Arg.Any<RingbaUOW>())
                 .Returns(Task.FromResult(new ActionResult { IsSuccessfull = isActionResultSuccessful }));
 
+            //act
             service = new ImplementMeService(
-                Substitute.For<IUOWStatusService>(),
+                subUOWStatusService,
                 _logService,
                 subMessageProcessingService,
                 subMessageQueService);
-
-            //act
             await service.DoWork();
-
+            
             //assert
             await subMessageQueService.Received().UpdateMessagesAsync(Arg.Is<IEnumerable<UpdateBatchRequest>>(p =>
-            p.Count() == 1 &&
-            p.First().Id == "1" &&
-            p.First().MessageCompleted == isActionResultSuccessful));
+                p.Count() == 1 &&
+                p.First().Id == "1" &&
+                p.First().MessageCompleted == isActionResultSuccessful));
+            await subUOWStatusService.Received(isActionResultSuccessful ? 1 : 0).ClearStatusMetadata(Arg.Any<string>());
+            await subUOWStatusService.Received(isActionResultSuccessful ? 0 : 1).ResetInProcessing(Arg.Any<string>());                
         }
 
         [Fact]
@@ -98,9 +109,13 @@ namespace Tests
             subMessageProcessingService.ProccessMessageAsync(Arg.Any<RingbaUOW>())
                 .Returns<ActionResult>(x => throw new ArgumentNullException());
 
+            var subUOWStatusService = Substitute.For<IUOWStatusService>();
+            subUOWStatusService.TrySetInProcessing(Arg.Any<string>())
+                .Returns(Task.FromResult(true));
+
             //act
             service = new ImplementMeService(
-                Substitute.For<IUOWStatusService>(),
+                subUOWStatusService,
                 _logService,
                 subMessageProcessingService,
                 subMessageQueService);
@@ -140,9 +155,13 @@ namespace Tests
             var subMessageProcessingService = Substitute.For<IMessageProcessService>();
             subMessageProcessingService.ProccessMessageAsync(Arg.Any<RingbaUOW>())
                 .Returns<ActionResult>(x => throw new ArgumentNullException("someParam", expectedExceptionMessage));
-                        
+
+            var subUOWStatusService = Substitute.For<IUOWStatusService>();
+            subUOWStatusService.TrySetInProcessing(Arg.Any<string>())
+                .Returns(Task.FromResult(true));
+
             service = new ImplementMeService(
-                Substitute.For<IUOWStatusService>(),
+                subUOWStatusService,
                 _logService,
                 subMessageProcessingService,
                 subMessageQueService);
@@ -339,8 +358,8 @@ namespace Tests
                 .Returns(Task.FromResult(new ActionResult()));
 
             var subUOWStatusService = Substitute.For<IUOWStatusService>();
-            subUOWStatusService.IsInProcessing(Arg.Any<string>())
-                .Returns(Task.FromResult(true))
+            subUOWStatusService.TrySetInProcessing(Arg.Any<string>())
+                .Returns(Task.FromResult(false))
                 .AndDoes(p => service.Stop());
 
             var subMessageProcessingService = Substitute.For<IMessageProcessService>();
@@ -358,8 +377,7 @@ namespace Tests
             //assert            
             await subMessageQueService.Received().UpdateMessagesAsync(Arg.Is<IEnumerable<UpdateBatchRequest>>(p => p.Count() == 0));
         }
-
-
+        
         [Theory]
         [InlineData(true, true, true)]
         [InlineData(true, false, true)]
@@ -390,8 +408,8 @@ namespace Tests
                 .Returns(Task.FromResult(new ActionResult()));
 
             var subUOWStatusService = Substitute.For<IUOWStatusService>();
-            subUOWStatusService.IsInProcessing(Arg.Any<string>())
-                .Returns(Task.FromResult(false));
+            subUOWStatusService.TrySetInProcessing(Arg.Any<string>())
+                .Returns(Task.FromResult(true));
 
             subUOWStatusService.HasExpiredAge(
                 Arg.Any<string>(),

@@ -33,10 +33,27 @@ namespace code_test
             await _repository.CreateAsync(new CreateKVRequest<UowStatus> { Item = retrialWrapper, Key = uowId });            
         }
 
-        public async Task<bool> IsInProcessing(string uowId)
+        public async Task<bool> TrySetInProcessing(string uowId)
         {
             var result = await _repository.GetAsync<UowStatus>(uowId);
-            return result.IsSuccessfull && result.Item.IsInProcessing;
+            if(result.Item == null && result.IsSuccessfull)
+            {
+                var retrialWrapper = new UowStatus(currentRetrialCount: 0);
+                await _repository.CreateAsync(new CreateKVRequest<UowStatus> { Item = retrialWrapper, Key = uowId });
+            }
+
+            if(result.Item != null && result.IsSuccessfull)
+            {
+                if (result.Item.IsInProcessing)
+                    return false;
+
+                var retrialWrapper = new UowStatus(result.Item.CurrentRetrialCount);
+                await _repository.DeleteAsync(uowId);
+                await _repository.CreateAsync(new CreateKVRequest<UowStatus> { Item = retrialWrapper, Key = uowId });
+                return true;
+            }            
+
+            return false;
         }
 
         public async Task<bool> HasExpiredRetries(string uowId, int maxNumberOfRetries)

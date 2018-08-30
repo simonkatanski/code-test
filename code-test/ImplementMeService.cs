@@ -101,9 +101,12 @@ namespace code_test
             {
                 token.ThrowIfCancellationRequested();
 
-                if (await _uowStatusService.IsInProcessing(uow.UOWId))
+                if (!await _uowStatusService.TrySetInProcessing(uow.UOWId))
+                {
+                    await _logService.LogInfoAsync(_logId, $"Unable to start processing message by id: {message.Id}, UOWId: {uow.UOWId}.");
                     return null;
-
+                }
+                                
                 if (await _uowStatusService.HasExpiredAge(uow.UOWId, uow.CreationEPOCH, uow.MaxAgeInSeconds) ||
                    await _uowStatusService.HasExpiredRetries(uow.UOWId, uow.MaxNumberOfRetries))
                 {
@@ -116,11 +119,10 @@ namespace code_test
                 }
 
                 var sw = Stopwatch.StartNew();                
-                ActionResult result = await _processService.ProccessMessageAsync(message.Body);
-                var messageStatusInfo = result.GetStatusInfo();
-
+                ActionResult result = await _processService.ProccessMessageAsync(message.Body);                
                 sw.Stop();
-                await _logService.LogInfoAsync(_logId, $"Processing message by id: {message.Id} completed with message status: {messageStatusInfo}, took: {sw.ElapsedMilliseconds} ms.");
+                                
+                await _logService.LogInfoAsync(_logId, $"Processing message by id: {message.Id} completed with message status: {result.GetStatusInfo()}, took: {sw.ElapsedMilliseconds} ms.");
 
                 if (result.IsSuccessfull)
                     await _uowStatusService.ClearStatusMetadata(uow.UOWId);

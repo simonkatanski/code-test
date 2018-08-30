@@ -83,8 +83,8 @@ namespace tests
         }
 
         [Theory]
-        [InlineData(true, true, true)]
-        [InlineData(true, false, false)]
+        [InlineData(true, true, false)]
+        [InlineData(true, false, true)]
         [InlineData(false, true, false)]
         [InlineData(false, false, false)]        
         public async Task GivenStatusInKV_WhenInProcessingCheck_ThenExpectAppropriateResult(bool isSuccessful, bool isInProcessing, bool expectedResult)
@@ -104,7 +104,7 @@ namespace tests
 
             //act
             var uowStatusService = new UOWStatusService(subKVRepository, _logService);
-            var isInProcessingResult = await uowStatusService.IsInProcessing(testUowId);
+            var isInProcessingResult = await uowStatusService.TrySetInProcessing(testUowId);
 
             //assert
             Assert.True(isInProcessingResult == expectedResult);

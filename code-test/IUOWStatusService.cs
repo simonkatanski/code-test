@@ -8,7 +8,7 @@ namespace code_test
 
         Task<bool> HasExpiredAge(string uowId, long creationEPOCH, int maxAgeInSeconds);
 
-        Task<bool> IsInProcessing(string uowId);
+        Task<bool> TrySetInProcessing(string uowId);
 
         Task ClearStatusMetadata(string uowId);
 
